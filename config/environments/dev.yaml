@@ -1,0 +1,8 @@
+env_name: dev
+
+launch_defaults:
+  q_executable: q
+  q_home: .
+  log_dir: ./var/log
+  run_dir: ./var/run
+  generated_dir: ./var/generated
