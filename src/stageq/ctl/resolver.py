@@ -5,22 +5,34 @@ from typing import Any
 
 import yaml
 
-from stageq.model.service import (
-    LaunchConfig,
-    QConfig,
-    QRuntimeConfig,
-    ResolvedServiceConfig,
-    ServiceIdentity,
+from stageq.ctl.runtime.q_options import (
+    merge_q_runtime_options,
+    q_runtime_options_from_dict,
 )
+from stageq.ctl.runtime.q_profiles import SERVICE_Q_PROFILE
+from stageq.model.common import (
+    ProcessLaunchConfig,
+    QBootstrapSpec,
+    QServiceRuntimeConfig,
+)
+from stageq.model.service import ResolvedServiceConfig, ServiceIdentity
+
 
 def _read_yaml(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        raise FileNotFoundError(f"config file not found: {path}")
     with path.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
+
+def _resolve_path(root_dir: Path, raw: str) -> Path:
+    return (root_dir / raw).resolve()
+
+
 def resolve_service_config(
-        root_dir: Path,
-        service_name: str,
-        env_name: str,
+    root_dir: Path,
+    service_name: str,
+    env_name: str,
 ) -> ResolvedServiceConfig:
     env_path = root_dir / "config" / "environments" / f"{env_name}.yaml"
     svc_path = root_dir / "config" / "services" / f"{service_name}.yaml"
@@ -30,48 +42,84 @@ def resolve_service_config(
 
     launch_defaults = env_cfg.get("launch_defaults", {})
     service = svc_cfg.get("service", {})
-    paths = svc_cfg.get("paths", {})
-    q_runtime = svc_cfg.get("q_runtime", {})
-    q_cfg = svc_cfg.get("q", {})
+    runtime = svc_cfg.get("runtime", {})
+    launch_cfg = svc_cfg.get("launch", {})
+    q_runtime_cfg = svc_cfg.get("q_runtime", {})
     service_config = svc_cfg.get("service_config", {})
 
     identity = ServiceIdentity(
         name=service["name"],
         service_type=service["type"],
-        runtime=service["runtime"],
         env_name=env_cfg["env_name"],
+        instance_id=service.get("instance_id"),
     )
 
-    launch = LaunchConfig(
-        q_executable=launch_defaults.get("q_executable", "q"),
-        q_home=(root_dir / launch_defaults.get("q_home", ".")).resolve(),
-        log_dir=(root_dir / launch_defaults.get("log_dir", "var/log")).resolve(),
-        run_dir=(root_dir / launch_defaults.get("run_dir", "var/run")).resolve(),
-        generated_dir=(root_dir / launch_defaults.get("generated_dir", "var/generated")).resolve(),
-        bootstrap=(root_dir / paths["bootstrap"]).resolve(),
+    launch = ProcessLaunchConfig(
+        executable=launch_cfg.get("executable", launch_defaults.get("executable", "q")),
+        working_dir=_resolve_path(
+            root_dir,
+            launch_cfg.get("working_dir", launch_defaults.get("working_dir", "."))
+        ),
+        log_dir=_resolve_path(
+            root_dir,
+            launch_cfg.get("log_dir", launch_defaults.get("log_dir", "var/log"))
+        ),
+        run_dir=_resolve_path(
+            root_dir,
+            launch_cfg.get("run_dir", launch_defaults.get("run_dir", "var/run"))
+        ),
+        generated_dir=_resolve_path(
+            root_dir,
+            launch_cfg.get("generated_dir", launch_defaults.get("generated_dir", "var/generated"))
+        ),
     )
 
-    qrt = QRuntimeConfig(
-        quiet=bool(q_runtime.get("quiet", False)),
-        port=q_runtime.get("port"),
-        secondary_threads=q_runtime.get("secondary_threads"),
-        timer_ticks=q_runtime.get("timer_ticks"),
-        workspace=q_runtime.get("workspace"),
-        timeout=q_runtime.get("timeout"),
-        utc_offset=q_runtime.get("utc_offset"),
-        http_size=q_runtime.get("http_size"),
-        user_password_file=q_runtime.get("user_password_file"),
-        tls_mode=bool(q_runtime.get("tls_mode", False)),
-    )
+    runtime_kind = runtime["kind"]
 
-    q = QConfig(
-        libraries=[(root_dir / p).resolve() for p in q_cfg.get("libraries", [])]
-    )
+    if runtime_kind == "q":
+        # ---------------------------------------------------------------------
+        # q options merge layers for services:
+        #
+        # q intrinsic defaults
+        #   < workload defaults (SERVICE_Q_PROFILE)
+        #   < environment defaults (env_cfg["q_runtime_defaults"])
+        #   < instance overrides (svc_cfg["q_runtime"]["options"])
+        #
+        # NOTE:
+        # q intrinsic defaults are represented implicitly.
+        # If a final field stays None, it is omitted from argv and q uses its own
+        # native default behavior.
+        # ---------------------------------------------------------------------
+        workload_defaults = SERVICE_Q_PROFILE.options
+        env_defaults = q_runtime_options_from_dict(env_cfg.get("q_runtime_defaults"))
+        instance_overrides = q_runtime_options_from_dict(
+            q_runtime_cfg.get("options")
+        )
 
-    return ResolvedServiceConfig(
-        identity=identity,
-        launch=launch,
-        q_runtime=qrt,
-        q=q,
-        service_config=service_config,
-    )
+        resolved_q_options = merge_q_runtime_options(
+            workload_defaults,
+            env_defaults,
+            instance_overrides,
+        )
+
+        resolved_runtime = QServiceRuntimeConfig(
+            bootstrap=QBootstrapSpec(
+                entry_file=_resolve_path(root_dir, q_runtime_cfg["bootstrap"])
+            ),
+            libraries=[
+                _resolve_path(root_dir, p)
+                for p in q_runtime_cfg.get("libraries", [])
+            ],
+            options=resolved_q_options,
+        )
+
+        cfg = ResolvedServiceConfig(
+            identity=identity,
+            launch=launch,
+            runtime=resolved_runtime,
+            service_config=service_config,
+        )
+        cfg.validate()
+        return cfg
+
+    raise NotImplementedError(f"runtime kind {runtime_kind!r} not implemented yet")

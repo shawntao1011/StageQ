@@ -7,7 +7,8 @@ dependencies = [
 ]
 
 [project.scripts]
-stageqctl = "stageq.cli.main:main"
+stageqsvc = "stageq.cli.svc_main:main"
+stageqjob = "stageq.cli.job_main:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

@@ -1,0 +1,31 @@
+service:
+  name: hdb.hk
+  type: hdb
+  env: dev
+  instance_id: hk
+
+runtime:
+  kind: q
+
+launch:
+  executable: q
+  working_dir: .
+  log_dir: ./var/log
+  run_dir: ./var/run
+  generated_dir: ./var/generated
+
+q_runtime:
+  bootstrap: src/stageq/q/bootstrap/bootstrap.q
+  options:
+    port: 32120
+    secondary_threads: 4
+  libraries:
+    - src/stageq/q/common/util.q
+    - src/stageq/q/services/hdb.q
+
+service_config:
+  market: hk
+  role: hdb
+  storage:
+    root: /data/hdb/hk
+    partition: date
