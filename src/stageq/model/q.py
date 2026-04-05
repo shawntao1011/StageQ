@@ -1,13 +1,60 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
-from typing import Literal, Any
+from dataclasses import dataclass, fields, field, asdict
 from pathlib import Path
+from typing import Literal, Any
+
+@dataclass(frozen=True)
+class QRuntimeOptions:
+    """
+    Final q executable startup option values.
+
+    Every field defaults to None:
+      - None  : this layer does not specify a value
+      - value : this layer explicitly specifies a value
+
+    This object is used both as:
+      - a partial overlay
+      - a final resolved result
+
+    IMPORTANT:
+    Only q executable-level startup flags belong here.
+    """
+
+    blocked: bool | None = None                     # -b
+    console_size: tuple[int, int] | None = None     # -c
+    http_size: tuple[int, int] | None = None        # -C
+    error_traps: int | None = None                  # -e
+    tls_mode: int | None = None                     # -E
+    garbage_collection: int | None = None           # -g
+    log_updates: bool | None = None                 # -l
+    log_sync: bool | None = None                    # -L
+    memory_domain: int | None = None                # -m
+    utc_offset: int | None = None                   # -o
+    port: int | None = None                         # -p
+    display_precision: int | None = None            # -P
+    quiet: bool | None = None                       # -q
+    secondary_threads: int | None = None            # -s
+    random_seed: int | None = None                  # -S
+    timer_ticks: int | None = None                  # -t
+    timeout: int | None = None                      # -T
+    disable_syscmds: bool | None = None             # -u
+    user_password_file: str | None = None           # -U
+    workspace: int | None = None                    # -w
+    start_week: int | None = None                   # -W
+    date_format: int | None = None                  # -z
+
+@dataclass(frozen=True)
+class QBootstrapConfig:
+    entry_file: Path
+    libraries: list[Path] = field(default_factory=list)
+
+@dataclass(frozen=True)
+class QServiceRuntimeConfig:
+    kind: Literal["q"] = "q"
+    startup_options: QRuntimeOptions = field(default_factory=QRuntimeOptions)
+    bootstrap: QBootstrapConfig | None = None
 
 ConfigScope = Literal["q_executable", "bootstrap", "service_config"]
-
 ArgKind = Literal["flag", "scalar", "multi"]
-
 ApplyMode = Literal["requires_restart", "hot_reloadable", "runtime_mutable"]
 
 @dataclass(frozen=True)
@@ -295,3 +342,111 @@ Q_CONFIG_SPECS: dict[str, QConfigSpec] = {
     # - Consumed by service logic (q / python / cpp)
     # ----------------------------------------------------------------------
 }
+
+@dataclass(frozen=True)
+class QConfigSpec:
+    name: str
+    scope: ConfigScope
+    arg_kind: ArgKind
+    cli_flag: str | None
+    value_type: str
+    apply_mode: ApplyMode
+    description: str
+
+Q_RUNTIME_DEFAULTS_FOR_SERVICE = QRuntimeOptions(
+    blocked=True,
+    disable_syscmds=True,
+)
+
+Q_RUNTIME_DEFAULTS_FOR_JOB = QRuntimeOptions(
+    quiet=True,
+)
+
+def merge_q_runtime_options(*layers: QRuntimeOptions) -> QRuntimeOptions:
+    """
+    Merge QRuntimeOptions layers from left to right.
+
+    Later non-None values override earlier values.
+    """
+    result = QRuntimeOptions()
+
+    for layer in layers:
+        for f in fields(QRuntimeOptions):
+            value = getattr(layer, f.name)
+            if value is not None:
+                setattr(result, f.name, value)
+
+    return result
+
+
+def q_runtime_options_from_dict(raw: dict[str, Any] | None) -> QRuntimeOptions:
+    """
+    Convert plain dict into QRuntimeOptions.
+
+    Unknown keys raise ValueError.
+    """
+    if raw is None:
+        return QRuntimeOptions()
+
+    valid_fields = {f.name for f in fields(QRuntimeOptions)}
+    unknown = set(raw) - valid_fields
+    if unknown:
+        raise ValueError(f"Unknown q runtime option keys: {sorted(unknown)}")
+
+    return QRuntimeOptions(**raw)
+
+
+def q_runtime_options_to_dict(options: QRuntimeOptions) -> dict[str, Any]:
+    return asdict(options)
+
+
+def compact_q_runtime_options(options: QRuntimeOptions) -> dict[str, Any]:
+    raw = asdict(options)
+    return {k: v for k, v in raw.items() if v is not None}
+
+def q_runtime_options_to_argv(options: QRuntimeOptions) -> list[str]:
+    """
+    Render final QRuntimeOptions into q argv flags.
+
+    Rules:
+    - None -> omit
+    - flag option:
+        True  -> emit
+        False -> omit
+    - value option:
+        emit '-x value'
+    """
+    argv: list[str] = []
+
+    for f in fields(QRuntimeOptions):
+        name = f.name
+        value = getattr(options, name)
+        if value is None:
+            continue
+
+        spec = Q_CONFIG_SPECS[name]
+
+        if spec.arg_kind == "flag":
+            if value is True:
+                argv.append(spec.cli_flag)  # type: ignore[arg-type]
+            continue
+
+        argv.extend([str(spec.cli_flag), str(value)])
+
+    return argv
+
+
+def build_q_bootstrap_argv(
+    q_executable: str,
+    bootstrap_file: Path,
+    runtime_options: QRuntimeOptions,
+    bootstrap_args: list[str] | None = None,
+) -> list[str]:
+    argv = [q_executable, str(bootstrap_file)]
+    argv.extend(q_runtime_options_to_argv(runtime_options))
+
+    if bootstrap_args:
+        argv.append("--")
+        argv.extend(bootstrap_args)
+
+    return argv

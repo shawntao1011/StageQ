@@ -26,47 +26,6 @@ class ProcessLaunchConfig:
     env: dict[str, str] = field(default_factory=dict)
 
 
-@dataclass
-class QRuntimeOptions:
-    """
-    Final q executable startup option values.
-
-    Every field defaults to None:
-      - None  : this layer does not specify a value
-      - value : this layer explicitly specifies a value
-
-    This object is used both as:
-      - a partial overlay
-      - a final resolved result
-
-    IMPORTANT:
-    Only q executable-level startup flags belong here.
-    """
-
-    blocked: bool | None = None                     # -b
-    console_size: tuple[int, int] | None = None     # -c
-    http_size: tuple[int, int] | None = None        # -C
-    error_traps: int | None = None                  # -e
-    tls_mode: int | None = None                     # -E
-    garbage_collection: int | None = None           # -g
-    log_updates: bool | None = None                 # -l
-    log_sync: bool | None = None                    # -L
-    memory_domain: int | None = None                # -m
-    utc_offset: int | None = None                   # -o
-    port: int | None = None                         # -p
-    display_precision: int | None = None            # -P
-    quiet: bool | None = None                       # -q
-    secondary_threads: int | None = None            # -s
-    random_seed: int | None = None                  # -S
-    timer_ticks: int | None = None                  # -t
-    timeout: int | None = None                      # -T
-    disable_syscmds: bool | None = None             # -u
-    user_password_file: str | None = None           # -U
-    workspace: int | None = None                    # -w
-    start_week: int | None = None                   # -W
-    date_format: int | None = None                  # -z
-
-
 @dataclass(frozen=True)
 class QBootstrapSpec:
     """
