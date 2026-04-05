@@ -119,6 +119,15 @@ Q_CONFIG_SPECS: dict[str, QConfigSpec] = {
         apply_mode="requires_restart",
         description="Log updates with sync (-L)",
     ),
+    "memory_domain_path": QConfigSpec(
+        name="memory_domain_path",
+        scope="q_executable",
+        arg_kind="scalar",
+        cli_flag="-m",
+        schema=Path | str,
+        apply_mode="requires_restart",
+        description="Filesystem-backed memory domain path (-m path)",
+    ),
     "utc_offset": QConfigSpec(
         name="utc_offset",
         scope="q_executable",
@@ -138,7 +147,7 @@ Q_CONFIG_SPECS: dict[str, QConfigSpec] = {
         description="Listening port",
     ),
     "display_precision": QConfigSpec(
-        name="precision",
+        name="display_precision",
         scope="q_executable",
         arg_kind="scalar",
         cli_flag="-P",
