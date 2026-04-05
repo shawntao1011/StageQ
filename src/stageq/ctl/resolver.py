@@ -12,7 +12,7 @@ from stageq.ctl.runtime.q_options import (
 from stageq.ctl.runtime.q_profiles import SERVICE_Q_PROFILE
 from stageq.model.common import (
     ProcessLaunchConfig,
-    QBootstrapSpec,
+    QBootstrapConfig,
     QServiceRuntimeConfig,
 )
 from stageq.model.service import ResolvedServiceConfig, ServiceIdentity
@@ -77,19 +77,15 @@ def resolve_service_config(
     runtime_kind = runtime["kind"]
 
     if runtime_kind == "q":
-        # ---------------------------------------------------------------------
-        # q options merge layers for services:
-        #
+        # Merge order:
         # q intrinsic defaults
         #   < workload defaults (SERVICE_Q_PROFILE)
         #   < environment defaults (env_cfg["q_runtime_defaults"])
         #   < instance overrides (svc_cfg["q_runtime"]["options"])
         #
-        # NOTE:
-        # q intrinsic defaults are represented implicitly.
-        # If a final field stays None, it is omitted from argv and q uses its own
-        # native default behavior.
-        # ---------------------------------------------------------------------
+        # q intrinsic defaults are represented implicitly:
+        # if a field remains None, it is omitted from argv and q uses its native default.
+
         workload_defaults = SERVICE_Q_PROFILE.options
         env_defaults = q_runtime_options_from_dict(env_cfg.get("q_runtime_defaults"))
         instance_overrides = q_runtime_options_from_dict(
@@ -103,14 +99,14 @@ def resolve_service_config(
         )
 
         resolved_runtime = QServiceRuntimeConfig(
-            bootstrap=QBootstrapSpec(
-                entry_file=_resolve_path(root_dir, q_runtime_cfg["bootstrap"])
+            startup_options=resolved_q_options,
+            bootstrap=QBootstrapConfig(
+                entry_file=_resolve_path(root_dir, q_runtime_cfg["bootstrap"]),
+                libraries=[
+                    _resolve_path(root_dir, p)
+                    for p in q_runtime_cfg.get("libraries", [])
+                ],
             ),
-            libraries=[
-                _resolve_path(root_dir, p)
-                for p in q_runtime_cfg.get("libraries", [])
-            ],
-            options=resolved_q_options,
         )
 
         cfg = ResolvedServiceConfig(

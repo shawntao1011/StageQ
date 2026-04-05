@@ -17,7 +17,7 @@ def write_text(path: Path, content: str) -> None:
 
 
 def write_pid(path: Path, pid: int) -> None:
-    write_text(path, str(pid) + "\n")
+    write_text(path, f"{pid}\n")
 
 
 def read_pid(path: Path) -> int | None:

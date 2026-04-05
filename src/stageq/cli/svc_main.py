@@ -1,125 +1,82 @@
 from __future__ import annotations
 
-import argparse
+import os
+import shlex
 from pathlib import Path
 
-def _root_dir() -> Path:
-    return Path(__file__).resolve().parents[3]
+from stageq.ctl.process import (
+    ensure_dirs,
+    is_pid_running,
+    read_pid,
+    spawn_process,
+    write_pid,
+    write_text,
+)
+from stageq.ctl.qrender import write_config_q
+from stageq.ctl.resolver import resolve_service_config
+from stageq.ctl.runtime.q_argv import build_q_bootstrap_argv
+from stageq.model.common import QServiceRuntimeConfig
 
 
-# -----------------------------------------------------------------------------
-# Commands
-# -----------------------------------------------------------------------------
-def cmd_launch(args: argparse.Namespace) -> None:
-    from stageq.ctl.launcher import launch_service
+def _service_files(root_dir: Path, service_name: str) -> dict[str, Path]:
+    return {
+        "pid": root_dir / "var" / "run" / f"{service_name}.pid",
+        "log": root_dir / "var" / "log" / f"{service_name}.log",
+        "cmdline": root_dir / "var" / "generated" / f"{service_name}.cmdline",
+    }
 
-    pid = launch_service(
-        root_dir=_root_dir(),
-        service_name=args.service_name,
-        env_name=args.env,
+
+def _build_process_env(cfg) -> dict[str, str]:
+    env = dict(os.environ)
+    env.update(cfg.launch.env)
+    env["QHOME"] = str(cfg.launch.working_dir)
+    env["STAGEQ_SERVICE_NAME"] = cfg.identity.name
+    env["STAGEQ_SERVICE_TYPE"] = cfg.identity.service_type
+    env["STAGEQ_ENV"] = cfg.identity.env_name
+    if cfg.identity.instance_id:
+        env["STAGEQ_INSTANCE_ID"] = cfg.identity.instance_id
+    return env
+
+
+def launch_service(root_dir: Path, service_name: str, env_name: str) -> int:
+    cfg = resolve_service_config(root_dir, service_name, env_name)
+    files = _service_files(root_dir, service_name)
+
+    ensure_dirs(cfg.launch.log_dir, cfg.launch.run_dir, cfg.launch.generated_dir)
+
+    existing_pid = read_pid(files["pid"])
+    if existing_pid and is_pid_running(existing_pid):
+        raise RuntimeError(f"service {service_name} already running with pid {existing_pid}")
+
+    config_q_file = write_config_q(cfg)
+
+    if isinstance(cfg.runtime, QServiceRuntimeConfig):
+        assert cfg.runtime.bootstrap is not None
+
+        bootstrap_args = [
+            "-name", cfg.identity.name,
+            "-env", cfg.identity.env_name,
+            "-config", str(config_q_file),
+        ]
+
+        argv = build_q_bootstrap_argv(
+            q_executable=cfg.launch.executable,
+            bootstrap_file=cfg.runtime.bootstrap.entry_file,
+            runtime_options=cfg.runtime.startup_options,
+            bootstrap_args=bootstrap_args,
+        )
+    else:
+        raise NotImplementedError(f"runtime {cfg.runtime.kind!r} not implemented yet")
+
+    env = _build_process_env(cfg)
+
+    write_text(files["cmdline"], shlex.join(argv) + "\n")
+
+    pid = spawn_process(
+        argv=argv,
+        cwd=cfg.launch.working_dir,
+        env=env,
+        log_file=files["log"],
     )
-    print(f"[OK] launched {args.service_name} pid={pid}")
-
-
-def cmd_stop(args: argparse.Namespace) -> None:
-    from stageq.ctl.process import read_pid, is_pid_running, stop_pid
-
-    pid_file = _root_dir() / "var" / "run" / f"{args.service_name}.pid"
-    pid = read_pid(pid_file)
-
-    if not pid:
-        print(f"[WARN] {args.service_name} not running (no pid file)")
-        return
-
-    if not is_pid_running(pid):
-        print(f"[WARN] {args.service_name} pid exists but not running")
-        return
-
-    stop_pid(pid)
-    print(f"[OK] stopped {args.service_name} pid={pid}")
-
-
-def cmd_status(args: argparse.Namespace) -> None:
-    from stageq.ctl.process import read_pid, is_pid_running
-
-    root = _root_dir()
-    pid_file = root / "var" / "run" / f"{args.service_name}.pid"
-    log_file = root / "var" / "log" / f"{args.service_name}.log"
-
-    pid = read_pid(pid_file)
-    running = bool(pid and is_pid_running(pid))
-
-    print(f"service : {args.service_name}")
-    print(f"pid     : {pid}")
-    print(f"running : {running}")
-    print(f"log     : {log_file}")
-
-
-def cmd_render(args: argparse.Namespace) -> None:
-    from stageq.ctl.resolver import resolve_service_config
-
-    cfg = resolve_service_config(
-        root_dir=_root_dir(),
-        service_name=args.service_name,
-        env_name=args.env,
-    )
-    cfg.validate()
-
-    print(f"service      = {cfg.identity.name}")
-    print(f"type         = {cfg.identity.service_type}")
-    print(f"env          = {cfg.identity.env_name}")
-    print(f"instance_id  = {cfg.identity.instance_id}")
-    print(f"runtime_kind = {cfg.runtime_kind}")
-
-    if cfg.runtime_kind == "q" and cfg.q_runtime:
-        print("q runtime:")
-        print(f"  bootstrap  = {cfg.q_runtime.bootstrap}")
-        print(f"  port       = {cfg.q_runtime.options.port}")
-        print("  libraries:")
-        for lib in cfg.q_runtime.libraries:
-            print(f"    - {lib}")
-
-    print("service_config:")
-    print(cfg.service_config)
-
-
-# -----------------------------------------------------------------------------
-# Parser
-# -----------------------------------------------------------------------------
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="stageqsvc")
-    sub = parser.add_subparsers(dest="cmd", required=True)
-
-    # launch
-    p = sub.add_parser("launch")
-    p.add_argument("service_name")
-    p.add_argument("--env", default="dev")
-    p.set_defaults(func=cmd_launch)
-
-    # stop
-    p = sub.add_parser("stop")
-    p.add_argument("service_name")
-    p.set_defaults(func=cmd_stop)
-
-    # status
-    p = sub.add_parser("status")
-    p.add_argument("service_name")
-    p.set_defaults(func=cmd_status)
-
-    # render
-    p = sub.add_parser("render")
-    p.add_argument("service_name")
-    p.add_argument("--env", default="dev")
-    p.set_defaults(func=cmd_render)
-
-    return parser
-
-
-def main() -> None:
-    parser = build_parser()
-    args = parser.parse_args()
-    args.func(args)
-
-
-if __name__ == "__main__":
-    main()
+    write_pid(files["pid"], pid)
+    return pid

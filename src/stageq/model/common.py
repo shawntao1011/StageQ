@@ -43,28 +43,28 @@ class QRuntimeOptions:
     Only q executable-level startup flags belong here.
     """
 
-    blocked: bool | None = None          # -b
-    quiet: bool | None = None            # -q
-    console_size: str | None = None      # -c
-    http_size: int | None = None         # -C
-    error_traps: bool | None = None      # -e
-    tls_mode: bool | None = None         # -E
-    garbage_collection: int | None = None  # -g
-    log_updates: bool | None = None      # -l
-    log_sync: bool | None = None         # -L
-    memory_domain: int | None = None     # -m
-    utc_offset: int | None = None        # -o
-    port: int | None = None              # -p
-    display_precision: int | None = None # -P
-    secondary_threads: int | None = None # -s
-    random_seed: int | None = None       # -S
-    timer_ticks: int | None = None       # -t
-    timeout: int | None = None           # -T
-    disable_syscmds: bool | None = None  # -u
-    user_password_file: str | None = None  # -U
-    workspace: str | None = None         # -w
-    start_week: int | None = None        # -W
-    date_format: str | None = None       # -z
+    blocked: bool | None = None             # -b
+    console_size: str | None = None         # -c
+    http_size: int | None = None            # -C
+    error_traps: bool | None = None         # -e
+    tls_mode: bool | None = None            # -E
+    garbage_collection: int | None = None   # -g
+    log_updates: bool | None = None         # -l
+    log_sync: bool | None = None            # -L
+    memory_domain: int | None = None        # -m
+    utc_offset: int | None = None           # -o
+    port: int | None = None                 # -p
+    display_precision: int | None = None    # -P
+    quiet: bool | None = None               # -q
+    secondary_threads: int | None = None    # -s
+    random_seed: int | None = None          # -S
+    timer_ticks: int | None = None          # -t
+    timeout: int | None = None              # -T
+    disable_syscmds: bool | None = None     # -u
+    user_password_file: str | None = None   # -U
+    workspace: str | None = None            # -w
+    start_week: int | None = None           # -W
+    date_format: str | None = None          # -z
 
 
 @dataclass(frozen=True)

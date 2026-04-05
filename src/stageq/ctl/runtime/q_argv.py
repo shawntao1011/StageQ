@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import fields
 from pathlib import Path
 
-from stageq.ctl.runtime.q_option_specs import Q_RUNTIME_OPTION_SPECS
+from stageq.ctl.runtime.q_specs import Q_CONFIG_SPECS
 from stageq.model.common import QRuntimeOptions
 
 
@@ -12,7 +12,7 @@ def q_runtime_options_to_argv(options: QRuntimeOptions) -> list[str]:
     Render final QRuntimeOptions into q argv flags.
 
     Rules:
-    - value is None: omit
+    - None -> omit
     - flag option:
         True  -> emit
         False -> omit
@@ -27,14 +27,14 @@ def q_runtime_options_to_argv(options: QRuntimeOptions) -> list[str]:
         if value is None:
             continue
 
-        spec = Q_RUNTIME_OPTION_SPECS[name]
+        spec = Q_CONFIG_SPECS[name]
 
         if spec.arg_kind == "flag":
             if value is True:
-                argv.append(spec.cli_flag)
+                argv.append(spec.cli_flag)  # type: ignore[arg-type]
             continue
 
-        argv.extend([spec.cli_flag, str(value)])
+        argv.extend([str(spec.cli_flag), str(value)])
 
     return argv
 
