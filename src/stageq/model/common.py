@@ -4,9 +4,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, TypeAlias
 
+from stageq.model.q_runtime_options import QRuntimeOptions
 
 RuntimeKind = Literal["q", "python", "cpp"]
-
 
 @dataclass
 class ProcessLaunchConfig:

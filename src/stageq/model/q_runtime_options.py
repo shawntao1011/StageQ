@@ -1,7 +1,8 @@
 from dataclasses import dataclass, fields, field, asdict
 from pathlib import Path
-from typing import Literal, Any, get_args, get_origin
-import types
+from typing import Literal, Any
+
+from stageq.model.helpers.q_runtime_options_validate import validate_q_runtime_option_dict as _validate_q_runtime_option_dict
 
 @dataclass(frozen=True)
 class QRuntimeOptions:
@@ -304,6 +305,12 @@ Q_RUNTIME_DEFAULTS_FOR_JOB = QRuntimeOptions(
     quiet=True,
 )
 
+def validate_q_runtime_option_dict(raw: dict[str, Any]) -> None:
+    """
+    Backward-compatible wrapper using q executable option specs.
+    """
+    _validate_q_runtime_option_dict(raw, Q_EXECUTABLE_OPTION_SPECS)
+
 def merge_q_runtime_options(*layers: QRuntimeOptions) -> QRuntimeOptions:
     """
     Merge QRuntimeOptions layers from left to right.
@@ -336,7 +343,7 @@ def q_runtime_options_from_dict(raw: dict[str, Any] | None) -> QRuntimeOptions:
         raise ValueError(f"Unknown q runtime option keys: {sorted(unknown)}")
 
     validate_q_runtime_option_dict(raw)
-
+    return QRuntimeOptions(**raw)
 
 def q_runtime_options_to_dict(options: QRuntimeOptions) -> dict[str, Any]:
     return asdict(options)
@@ -388,158 +395,6 @@ def q_runtime_options_to_argv(options: QRuntimeOptions) -> list[str]:
         raise ValueError(f"unknown arg_kind={spec.arg_kind!r} for {name}")
 
     return argv
-
-def _validate_against_schema(value: Any, schema: Any, field_name: str) -> None:
-    """
-    Validate one value against a lightweight schema declaration.
-
-    Supported schema forms:
-    - bool / int / str / Path
-    - Literal[...]
-    - tuple[T1, T2, ...]
-    - list[T]
-    - A | B / Union[A, B]
-
-    Raises:
-        TypeError / ValueError on validation failure
-    """
-    # No schema -> no validation
-    if schema is None:
-        return
-
-    origin = get_origin(schema)
-    args = get_args(schema)
-
-    # ------------------------------------------------------------------
-    # Literal[...]
-    # ------------------------------------------------------------------
-    if origin is Literal:
-        allowed = args
-        if value not in allowed:
-            raise ValueError(
-                f"{field_name}: invalid literal value {value!r}; "
-                f"expected one of {allowed!r}"
-            )
-        return
-
-    # ------------------------------------------------------------------
-    # tuple[T1, T2, ...]
-    # ------------------------------------------------------------------
-    if origin is tuple:
-        if not isinstance(value, tuple):
-            raise TypeError(
-                f"{field_name}: expected tuple, got {type(value).__name__}"
-            )
-
-        # Fixed-length tuple validation
-        if len(args) == 2 and args[1] is Ellipsis:
-            # tuple[T, ...]
-            item_schema = args[0]
-            for i, item in enumerate(value):
-                _validate_against_schema(item, item_schema, f"{field_name}[{i}]")
-            return
-
-        if len(value) != len(args):
-            raise ValueError(
-                f"{field_name}: expected tuple of length {len(args)}, got {len(value)}"
-            )
-
-        for i, (item, item_schema) in enumerate(zip(value, args)):
-            _validate_against_schema(item, item_schema, f"{field_name}[{i}]")
-        return
-
-    # ------------------------------------------------------------------
-    # list[T]
-    # ------------------------------------------------------------------
-    if origin is list:
-        if not isinstance(value, list):
-            raise TypeError(
-                f"{field_name}: expected list, got {type(value).__name__}"
-            )
-
-        if len(args) == 1:
-            item_schema = args[0]
-            for i, item in enumerate(value):
-                _validate_against_schema(item, item_schema, f"{field_name}[{i}]")
-        return
-
-    # ------------------------------------------------------------------
-    # Union / PEP604 A | B
-    # ------------------------------------------------------------------
-    if origin is types.UnionType or origin is getattr(types, "UnionType", None):
-        # For Python 3.10+ `A | B`
-        last_error: Exception | None = None
-        for option_schema in args:
-            try:
-                _validate_against_schema(value, option_schema, field_name)
-                return
-            except (TypeError, ValueError) as e:
-                last_error = e
-        raise TypeError(
-            f"{field_name}: value {value!r} does not match any allowed schema in {schema!r}"
-        ) from last_error
-
-    # typing.Union
-    if origin is getattr(__import__("typing"), "Union", None):
-        last_error: Exception | None = None
-        for option_schema in args:
-            try:
-                _validate_against_schema(value, option_schema, field_name)
-                return
-            except (TypeError, ValueError) as e:
-                last_error = e
-        raise TypeError(
-            f"{field_name}: value {value!r} does not match any allowed schema in {schema!r}"
-        ) from last_error
-
-    # ------------------------------------------------------------------
-    # Plain classes/types
-    # ------------------------------------------------------------------
-    if schema is Path:
-        if not isinstance(value, Path):
-            raise TypeError(
-                f"{field_name}: expected Path, got {type(value).__name__}"
-            )
-        return
-
-    if schema in (bool, int, str, float):
-        if not isinstance(value, schema):
-            raise TypeError(
-                f"{field_name}: expected {schema.__name__}, got {type(value).__name__}"
-            )
-        return
-
-    # Fallback: try isinstance(schema)
-    if isinstance(schema, type):
-        if not isinstance(value, schema):
-            raise TypeError(
-                f"{field_name}: expected {schema.__name__}, got {type(value).__name__}"
-            )
-        return
-
-    # If we reach here, schema form is unsupported for now
-    raise TypeError(
-        f"{field_name}: unsupported schema declaration {schema!r}"
-    )
-
-def validate_q_runtime_option_dict(raw: dict[str, Any]) -> None:
-    """
-    Validate a raw q runtime option dict against Q_EXECUTABLE_OPTION_SPECS.
-
-    Checks:
-    - unknown keys
-    - schema compatibility for known keys
-
-    Raises:
-        ValueError / TypeError
-    """
-    unknown = set(raw) - set(Q_EXECUTABLE_OPTION_SPECS)
-    if unknown:
-        raise ValueError(f"Unknown q runtime option keys: {sorted(unknown)}")
-
-    for name, value in raw.items():
-        spec = Q_EXECUTABLE_OPTION_SPECS[name]
-        _validate_against_schema(value, spec.schema, name)
 
 def build_q_bootstrap_argv(
     q_executable: str,
