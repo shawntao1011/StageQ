@@ -4,19 +4,12 @@ import os
 import shlex
 from pathlib import Path
 
-from stageq.ctl.process import (
-    ensure_dirs,
-    is_pid_running,
-    read_pid,
-    spawn_process,
-    stop_pid,
-    write_pid,
-    write_text,
-)
-from stageq.ctl.qrender import write_config_q
+from stageq.codec.q_config import write_config_q
+from stageq.codec.q_runtime import build_q_bootstrap_argv
+from stageq.ctl.fsops import ensure_dirs, read_pid, write_pid, write_text
+from stageq.ctl.process import is_pid_running, spawn_process, stop_pid
 from stageq.ctl.resolver import resolve_service_config
-from stageq.model.common import QServiceRuntimeConfig
-from stageq.model.q_runtime_options import build_q_bootstrap_argv
+from stageq.model.runtime import QRuntimeConfig
 
 
 def _service_files(root_dir: Path, service_name: str) -> dict[str, Path]:
@@ -25,6 +18,7 @@ def _service_files(root_dir: Path, service_name: str) -> dict[str, Path]:
         "log": root_dir / "var" / "log" / f"{service_name}.log",
         "cmdline": root_dir / "var" / "generated" / f"{service_name}.cmdline",
     }
+
 
 def _build_process_env(cfg) -> dict[str, str]:
     env = dict(os.environ)
@@ -50,34 +44,22 @@ def launch_service(root_dir: Path, service_name: str, env_name: str) -> int:
 
     config_q_file = write_config_q(cfg)
 
-    if isinstance(cfg.runtime, QServiceRuntimeConfig):
-        assert cfg.runtime.bootstrap is not None
-
-        bootstrap_args = [
-            "-name", cfg.identity.name,
-            "-env", cfg.identity.env_name,
-            "-config", str(config_q_file),
-        ]
-
-        argv = build_q_bootstrap_argv(
-            q_executable=cfg.launch.executable,
-            bootstrap_file=cfg.runtime.bootstrap.entry_file,
-            runtime_options=cfg.runtime.startup_options,
-            bootstrap_args=bootstrap_args,
-        )
-    else:
+    if not isinstance(cfg.runtime, QRuntimeConfig):
         raise NotImplementedError(f"runtime {cfg.runtime.kind!r} not implemented yet")
+    assert cfg.runtime.bootstrap is not None
+
+    bootstrap_args = ["-name", cfg.identity.name, "-env", cfg.identity.env_name, "-config", str(config_q_file)]
+    argv = build_q_bootstrap_argv(
+        q_executable=cfg.launch.executable,
+        bootstrap_file=cfg.runtime.bootstrap.entry_file,
+        runtime_options=cfg.runtime.startup_options,
+        bootstrap_args=bootstrap_args,
+    )
 
     env = _build_process_env(cfg)
-
     write_text(files["cmdline"], shlex.join(argv) + "\n")
 
-    pid = spawn_process(
-        argv=argv,
-        cwd=cfg.launch.working_dir,
-        env=env,
-        log_file=files["log"],
-    )
+    pid = spawn_process(argv=argv, cwd=cfg.launch.working_dir, env=env, log_file=files["log"])
     write_pid(files["pid"], pid)
     return pid
 
@@ -90,6 +72,7 @@ def stop_service(root_dir: Path, service_name: str) -> bool:
 
     stop_pid(pid)
     return True
+
 
 def service_status(root_dir: Path, service_name: str) -> tuple[bool, int | None]:
     pid_file = _service_files(root_dir, service_name)["pid"]

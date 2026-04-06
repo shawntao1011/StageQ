@@ -3,7 +3,7 @@ from typing import Literal
 
 import pytest
 
-from stageq.model.helpers.q_runtime_options_validate import validate_against_schema
+from stageq.model.runtime import validate_against_schema
 
 
 @pytest.mark.parametrize(
@@ -33,11 +33,6 @@ def test_validate_against_schema_accepts_supported_forms(value, schema) -> None:
         ("/tmp/a", Path, TypeError, "expected Path"),
     ],
 )
-def test_validate_against_schema_rejects_invalid_input(
-    value,
-    schema,
-    error_type,
-    message,
-) -> None:
+def test_validate_against_schema_rejects_invalid_input(value, schema, error_type, message) -> None:
     with pytest.raises(error_type, match=message):
         validate_against_schema(value, schema, "field")

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from stageq.model.common import QServiceRuntimeConfig
+from stageq.model.runtime import QRuntimeConfig
 from stageq.model.service import ResolvedServiceConfig
 
 
@@ -43,8 +43,8 @@ def _to_q(value: Any) -> str:
 
 
 def render_config_q(cfg: ResolvedServiceConfig) -> str:
-    if not isinstance(cfg.runtime, QServiceRuntimeConfig):
-        raise ValueError("qrender only supports q service runtime")
+    if not isinstance(cfg.runtime, QRuntimeConfig):
+        raise ValueError("render_config_q only supports q runtime")
 
     meta = {
         "name": cfg.identity.name,
@@ -52,7 +52,6 @@ def render_config_q(cfg: ResolvedServiceConfig) -> str:
         "env": cfg.identity.env_name,
         "instance_id": cfg.identity.instance_id,
     }
-
     libs = [str(p) for p in cfg.runtime.bootstrap.libraries] if cfg.runtime.bootstrap else []
 
     lines = [

@@ -1,38 +1,36 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
-from stageq.model.common import ProcessLaunchConfig, ServiceRuntimeConfig
+from stageq.model.runtime import RuntimeConfig
+
 
 @dataclass(frozen=True)
 class ServiceIdentity:
-    """
-    Stable identity for a long-running service instance.
-    """
-
     name: str
-    # Full instance name, e.g. "hdb.hk"
-
     service_type: str
-    # Logical role, e.g. "hdb"
-
     env_name: str
-    # e.g. "dev", "prod"
-
     instance_id: str | None = None
-    # e.g. "hk"
+
+
+@dataclass
+class ProcessLaunchConfig:
+    executable: str
+    working_dir: Path
+    log_dir: Path
+    run_dir: Path
+    generated_dir: Path
+    args: list[str] = field(default_factory=list)
+    env: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
 class ResolvedServiceConfig:
-    """
-    Final resolved model for a long-running service.
-    """
-
     identity: ServiceIdentity
     launch: ProcessLaunchConfig
-    runtime: ServiceRuntimeConfig
+    runtime: RuntimeConfig
     service_config: dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> None:

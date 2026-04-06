@@ -1,0 +1,12 @@
+env_name: dev
+
+launch_defaults:
+  executable: q
+  working_dir: .
+  log_dir: ./var/log
+  run_dir: ./var/run
+  generated_dir: ./var/generated
+
+q_runtime_defaults:
+  quiet: false
+  disable_syscmds: false
