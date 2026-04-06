@@ -1,0 +1,39 @@
+service:
+  name: wdb.hk
+  type: wdb
+  env: dev
+  instance_id: hk
+
+runtime:
+  kind: q
+
+launch:
+  executable: q
+  working_dir: .
+  log_dir: ./var/log
+  run_dir: ./var/run
+  generated_dir: ./var/generated
+
+q_runtime:
+  bootstrap: src/stageq/q/bootstrap/bootstrap.q
+  options:
+    port: 32101
+    secondary_threads: 4
+    utc_offset: 0
+  libraries:
+    - src/stageq/q/common/util.q
+    - src/stageq/q/services/wdb.q
+
+service_config:
+  region: hk
+
+  stream:
+    topic: futu.basicqot.pb
+    consumer_group: wdb.hk
+
+  storage:
+    root: /data/wdb/hk
+    partition: date
+
+  replay:
+    enabled: true

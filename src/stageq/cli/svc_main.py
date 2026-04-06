@@ -1,23 +1,18 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 
+from stageq.cli.common import root_dir
 from stageq.ctl.launcher import launch_service, service_status, stop_service
 
-def _root_dir() -> Path:
-    return Path(__file__).resolve().parents[3]
 
 def cmd_start(args: argparse.Namespace) -> None:
-    pid = launch_service(
-        root_dir=_root_dir(),
-        service_name=args.service_name,
-        env_name=args.env,
-    )
+    pid = launch_service(root_dir=root_dir(), service_name=args.service_name, env_name=args.env)
     print(f"started {args.service_name} (pid={pid})")
 
+
 def cmd_stop(args: argparse.Namespace) -> None:
-    stopped = stop_service(_root_dir(), args.service_name)
+    stopped = stop_service(root_dir(), args.service_name)
     if stopped:
         print(f"stopped {args.service_name}")
     else:
@@ -25,14 +20,13 @@ def cmd_stop(args: argparse.Namespace) -> None:
 
 
 def cmd_status(args: argparse.Namespace) -> None:
-    running, pid = service_status(_root_dir(), args.service_name)
+    running, pid = service_status(root_dir(), args.service_name)
     if running:
         print(f"running {args.service_name} (pid={pid})")
+    elif pid is None:
+        print(f"not running {args.service_name} (pid file missing)")
     else:
-        if pid is None:
-            print(f"not running {args.service_name} (pid file missing)")
-        else:
-            print(f"not running {args.service_name} (stale pid={pid})")
+        print(f"not running {args.service_name} (stale pid={pid})")
 
 
 def build_parser() -> argparse.ArgumentParser:
