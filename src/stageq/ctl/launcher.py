@@ -15,10 +15,8 @@ from stageq.ctl.process import (
 )
 from stageq.ctl.qrender import write_config_q
 from stageq.ctl.resolver import resolve_service_config
-from stageq.model.q_runtime_options import (
-    QServiceRuntimeConfig,
-    build_q_bootstrap_argv,
-)
+from stageq.model.common import QServiceRuntimeConfig
+from stageq.model.q_runtime_options import build_q_bootstrap_argv
 
 
 def _service_files(root_dir: Path, service_name: str) -> dict[str, Path]:

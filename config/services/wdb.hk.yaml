@@ -1,17 +1,25 @@
 service:
   name: wdb.hk
   type: wdb
-  runtime: q
+  env: dev
+  instance_id: hk
 
-paths:
-  bootstrap: src/stageq/q/bootstrap/bootstrap.q
+runtime:
+  kind: q
+
+launch:
+  executable: q
+  working_dir: .
+  log_dir: ./var/log
+  run_dir: ./var/run
+  generated_dir: ./var/generated
 
 q_runtime:
-  port: 32101
-  secondary_threads: 4
-  utc_offset: 0
-
-q:
+  bootstrap: src/stageq/q/bootstrap/bootstrap.q
+  options:
+    port: 32101
+    secondary_threads: 4
+    utc_offset: 0
   libraries:
     - src/stageq/q/common/util.q
     - src/stageq/q/services/wdb.q

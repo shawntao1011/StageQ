@@ -5,10 +5,8 @@ from typing import Any
 
 import yaml
 
-from stageq.model.common import ProcessLaunchConfig
+from stageq.model.common import ProcessLaunchConfig, QBootstrapConfig, QServiceRuntimeConfig
 from stageq.model.q_runtime_options import (
-    QBootstrapConfig,
-    QServiceRuntimeConfig,
     Q_RUNTIME_DEFAULTS_FOR_SERVICE,
     merge_q_runtime_options,
     q_runtime_options_from_dict,

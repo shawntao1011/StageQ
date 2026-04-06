@@ -27,7 +27,7 @@ class ProcessLaunchConfig:
 
 
 @dataclass(frozen=True)
-class QBootstrapSpec:
+class QBootstrapConfig:
     """
     StageQ-specific q bootstrap entry definition.
 
@@ -36,6 +36,7 @@ class QBootstrapSpec:
     """
 
     entry_file: Path
+    libraries: list[Path] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -45,9 +46,8 @@ class QServiceRuntimeConfig:
     """
 
     kind: Literal["q"] = "q"
-    bootstrap: QBootstrapSpec | None = None
-    libraries: list[Path] = field(default_factory=list)
-    options: QRuntimeOptions = field(default_factory=QRuntimeOptions)
+    startup_options: QRuntimeOptions = field(default_factory=QRuntimeOptions)
+    bootstrap: QBootstrapConfig | None = None
 
 
 @dataclass(frozen=True)

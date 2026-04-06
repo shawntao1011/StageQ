@@ -1,4 +1,4 @@
-from dataclasses import dataclass, fields, field, asdict
+from dataclasses import dataclass, fields, asdict
 from pathlib import Path
 from typing import Literal, Any
 
@@ -43,17 +43,6 @@ class QRuntimeOptions:
     workspace: int | None = None                            # -w
     start_week: Literal[0, 1, 2, 3, 4, 5, 6] | None = None  # -W
     date_format: Literal[0, 1] | None = None                # -z
-
-@dataclass(frozen=True)
-class QBootstrapConfig:
-    entry_file: Path
-    libraries: list[Path] = field(default_factory=list)
-
-@dataclass(frozen=True)
-class QServiceRuntimeConfig:
-    kind: Literal["q"] = "q"
-    startup_options: QRuntimeOptions = field(default_factory=QRuntimeOptions)
-    bootstrap: QBootstrapConfig | None = None
 
 ConfigScope = Literal["q_executable", "bootstrap", "service_config"]
 ArgKind = Literal["flag", "scalar", "multi"]

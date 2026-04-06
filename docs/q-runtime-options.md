@@ -76,3 +76,48 @@ q intrinsic defaults
   < environment defaults
   < instance overrides
 ```
+
+---
+
+## Service Startup Config Model
+
+StageQ service startup config is grouped into three objects:
+
+1. `QRuntimeOptions`
+   - Source of q executable startup flags (e.g. `-p`, `-s`, `-u`)
+   - Resolved via 4-layer merge above
+   - Rendered into q argv
+
+2. `QBootstrapConfig`
+   - StageQ bootstrap entry and preload libraries
+   - Usually provided directly by service instance config
+   - Currently uses direct final values (no complex merge policy yet)
+
+3. `service_config`
+   - Business/service payload consumed by q bootstrap code
+   - Currently usually provided as final instance values
+   - Can later be expanded to include environment/business defaults
+
+This separation keeps q executable concerns isolated from bootstrap and
+business config concerns.
+
+---
+
+## Canonical Service Schema
+
+Resolver requires a canonical schema for q services:
+
+```yaml
+runtime:
+  kind: q
+
+q_runtime:
+  bootstrap: src/stageq/q/bootstrap/bootstrap.q
+  options:
+    port: 32120
+    secondary_threads: 4
+  libraries:
+    - src/stageq/q/common/util.q
+```
+
+This keeps startup config explicit and removes ambiguity in resolver behavior.
