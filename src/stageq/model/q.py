@@ -1,6 +1,7 @@
 from dataclasses import dataclass, fields, field, asdict
 from pathlib import Path
-from typing import Literal, Any
+from typing import Literal, Any, get_args, get_origin
+import types
 
 @dataclass(frozen=True)
 class QRuntimeOptions:
@@ -19,28 +20,28 @@ class QRuntimeOptions:
     Only q executable-level startup flags belong here.
     """
 
-    blocked: bool | None = None                     # -b
-    console_size: tuple[int, int] | None = None     # -c
-    http_size: tuple[int, int] | None = None        # -C
-    error_traps: int | None = None                  # -e
-    tls_mode: int | None = None                     # -E
-    garbage_collection: int | None = None           # -g
-    log_updates: bool | None = None                 # -l
-    log_sync: bool | None = None                    # -L
-    memory_domain: int | None = None                # -m
-    utc_offset: int | None = None                   # -o
-    port: int | None = None                         # -p
-    display_precision: int | None = None            # -P
-    quiet: bool | None = None                       # -q
-    secondary_threads: int | None = None            # -s
-    random_seed: int | None = None                  # -S
-    timer_ticks: int | None = None                  # -t
-    timeout: int | None = None                      # -T
-    disable_syscmds: bool | None = None             # -u
-    user_password_file: str | None = None           # -U
-    workspace: int | None = None                    # -w
-    start_week: int | None = None                   # -W
-    date_format: int | None = None                  # -z
+    blocked: bool | None = None                             # -b
+    console_size: tuple[int, int] | None = None             # -c
+    http_size: tuple[int, int] | None = None                # -C
+    error_traps: Literal[0, 1, 2] | None = None             # -e
+    tls_mode: Literal[0, 1, 2] | None = None                # -E
+    garbage_collection: Literal[0, 1] | None = None         # -g
+    log_updates: bool | None = None                         # -l
+    log_sync: bool | None = None                            # -L
+    memory_domain_path: Path | None = None                  # -m
+    utc_offset: int | None = None                           # -o
+    port: int | None = None                                 # -p
+    display_precision: int | None = None                    # -P
+    quiet: bool | None = None                               # -q
+    secondary_threads: int | None = None                    # -s
+    random_seed: int | None = None                          # -S
+    timer_ticks: int | None = None                          # -t
+    timeout: int | None = None                              # -T
+    disable_syscmds: int | str | None = None                # -u
+    user_password_file: Path | str | None = None            # -U
+    workspace: int | None = None                            # -w
+    start_week: Literal[0, 1, 2, 3, 4, 5, 6] | None = None  # -W
+    date_format: Literal[0, 1] | None = None                # -z
 
 @dataclass(frozen=True)
 class QBootstrapConfig:
@@ -80,8 +81,7 @@ class QConfigSpec:
     apply_mode: ApplyMode
     description: str
 
-
-Q_CONFIG_SPECS: dict[str, QConfigSpec] = {
+Q_EXECUTABLE_OPTION_SPECS: dict[str, QConfigSpec] = {
     # ----------------------------------------------------------------------
     # Q EXECUTABLE OPTIONS
     # ----------------------------------------------------------------------
@@ -109,7 +109,7 @@ Q_CONFIG_SPECS: dict[str, QConfigSpec] = {
         arg_kind="multi",
         cli_flag="-c",
         schema=tuple[int, int],
-        apply_mode="runtime_mutable",
+        apply_mode="requires_restart",
         description="Console size (rows, cols), e.g. -c 40 120",
     ),
     "http_size": QConfigSpec(
@@ -118,7 +118,7 @@ Q_CONFIG_SPECS: dict[str, QConfigSpec] = {
         arg_kind="scalar",
         cli_flag="-C",
         schema=tuple[int, int],
-        apply_mode="runtime_mutable",
+        apply_mode="requires_restart",
         description="HTTP size (rows, cols), e.g. -c 40 120",
     ),
     "error_traps": QConfigSpec(
@@ -181,7 +181,7 @@ Q_CONFIG_SPECS: dict[str, QConfigSpec] = {
         arg_kind="scalar",
         cli_flag="-o",
         schema=int,
-        apply_mode="hot_reloadable",
+        apply_mode="requires_restart",
         description="UTC offset",
     ),
     "port": QConfigSpec(
@@ -190,7 +190,7 @@ Q_CONFIG_SPECS: dict[str, QConfigSpec] = {
         arg_kind="scalar",
         cli_flag="-p",
         schema=int,
-        apply_mode="hot_reloadable",
+        apply_mode="requires_restart",
         description="Listening port",
     ),
     "display_precision": QConfigSpec(
@@ -199,7 +199,7 @@ Q_CONFIG_SPECS: dict[str, QConfigSpec] = {
         arg_kind="scalar",
         cli_flag="-P",
         schema=int,
-        apply_mode="hot_reloadable",
+        apply_mode="requires_restart",
         description="Display precision for floating-point numbers (number of digits)",
     ),
     "quiet": QConfigSpec(
@@ -226,7 +226,7 @@ Q_CONFIG_SPECS: dict[str, QConfigSpec] = {
         arg_kind="scalar",
         cli_flag="-S",
         schema=int,
-        apply_mode="hot_reloadable",
+        apply_mode="requires_restart",
         description="Random seed value (-S N)",
     ),
     "timer_ticks": QConfigSpec(
@@ -235,7 +235,7 @@ Q_CONFIG_SPECS: dict[str, QConfigSpec] = {
         arg_kind="scalar",
         cli_flag="-t",
         schema=int,
-        apply_mode="hot_reloadable",
+        apply_mode="requires_restart",
         description="Timer ticks, in milliseconds",
     ),
     "timeout": QConfigSpec(
@@ -244,7 +244,7 @@ Q_CONFIG_SPECS: dict[str, QConfigSpec] = {
         arg_kind="scalar",
         cli_flag="-T",
         schema=int,
-        apply_mode="hot_reloadable",
+        apply_mode="requires_restart",
         description="Timeout, in seconds",
     ),
     "disable_syscmds": QConfigSpec(
@@ -292,66 +292,8 @@ Q_CONFIG_SPECS: dict[str, QConfigSpec] = {
         apply_mode="requires_restart",
         description="Date parsing format (0=mm/dd/yyyy, 1=dd/mm/yyyy; default=0)",
     ),
-
-    # ----------------------------------------------------------------------
-    # BOOTSTRAP LAYER
-    # ----------------------------------------------------------------------
-    # q process initialization after startup
-    # e.g.
-    #   \l init.q
-    #   \l lib1.q
-    #   \l lib2.q
-    #
-    # Characteristics:
-    # - Executed after q process starts
-    # - Defines runtime environment (libraries, setup scripts)
-    # - Not part of CLI flags
-    # ----------------------------------------------------------------------
-    "bootstrap_entry": QConfigSpec(
-        name="bootstrap_entry",
-        scope="bootstrap",
-        arg_kind="scalar",
-        cli_flag=None,
-        schema=Path,
-        apply_mode="requires_restart",
-        description="Bootstrap entry .q file",
-    ),
-    "libraries": QConfigSpec(
-        name="libraries",
-        scope="bootstrap",
-        arg_kind="multi",
-        cli_flag=None,
-        schema=list[Path],
-        apply_mode="requires_restart",
-        description="Ordered q library load list",
-    ),
-
-    # ----------------------------------------------------------------------
-    # SERVICE CONFIG
-    # ----------------------------------------------------------------------
-    # Service-level configuration (application / business logic)
-    #
-    # Examples:
-    # - ports / endpoints
-    # - data paths
-    # - environment settings
-    #
-    # Characteristics:
-    # - Not q runtime flags
-    # - Not bootstrap scripts
-    # - Consumed by service logic (q / python / cpp)
-    # ----------------------------------------------------------------------
 }
 
-@dataclass(frozen=True)
-class QConfigSpec:
-    name: str
-    scope: ConfigScope
-    arg_kind: ArgKind
-    cli_flag: str | None
-    value_type: str
-    apply_mode: ApplyMode
-    description: str
 
 Q_RUNTIME_DEFAULTS_FOR_SERVICE = QRuntimeOptions(
     blocked=True,
@@ -393,12 +335,11 @@ def q_runtime_options_from_dict(raw: dict[str, Any] | None) -> QRuntimeOptions:
     if unknown:
         raise ValueError(f"Unknown q runtime option keys: {sorted(unknown)}")
 
-    return QRuntimeOptions(**raw)
+    validate_q_runtime_option_dict(raw)
 
 
 def q_runtime_options_to_dict(options: QRuntimeOptions) -> dict[str, Any]:
     return asdict(options)
-
 
 def compact_q_runtime_options(options: QRuntimeOptions) -> dict[str, Any]:
     raw = asdict(options)
@@ -424,17 +365,181 @@ def q_runtime_options_to_argv(options: QRuntimeOptions) -> list[str]:
         if value is None:
             continue
 
-        spec = Q_CONFIG_SPECS[name]
+        spec = Q_EXECUTABLE_OPTION_SPECS[name]
 
         if spec.arg_kind == "flag":
             if value is True:
                 argv.append(spec.cli_flag)  # type: ignore[arg-type]
             continue
 
-        argv.extend([str(spec.cli_flag), str(value)])
+        if spec.arg_kind == "scalar":
+            argv.extend([str(spec.cli_flag), str(value)])
+            continue
+
+        if spec.arg_kind == "multi":
+            if not isinstance(value, (tuple, list)):
+                raise TypeError(
+                    f"{name} expects tuple/list for multi arg, got {type(value)!r}"
+                )
+            argv.append(str(spec.cli_flag))
+            argv.extend(str(v) for v in value)
+            continue
+
+        raise ValueError(f"unknown arg_kind={spec.arg_kind!r} for {name}")
 
     return argv
 
+def _validate_against_schema(value: Any, schema: Any, field_name: str) -> None:
+    """
+    Validate one value against a lightweight schema declaration.
+
+    Supported schema forms:
+    - bool / int / str / Path
+    - Literal[...]
+    - tuple[T1, T2, ...]
+    - list[T]
+    - A | B / Union[A, B]
+
+    Raises:
+        TypeError / ValueError on validation failure
+    """
+    # No schema -> no validation
+    if schema is None:
+        return
+
+    origin = get_origin(schema)
+    args = get_args(schema)
+
+    # ------------------------------------------------------------------
+    # Literal[...]
+    # ------------------------------------------------------------------
+    if origin is Literal:
+        allowed = args
+        if value not in allowed:
+            raise ValueError(
+                f"{field_name}: invalid literal value {value!r}; "
+                f"expected one of {allowed!r}"
+            )
+        return
+
+    # ------------------------------------------------------------------
+    # tuple[T1, T2, ...]
+    # ------------------------------------------------------------------
+    if origin is tuple:
+        if not isinstance(value, tuple):
+            raise TypeError(
+                f"{field_name}: expected tuple, got {type(value).__name__}"
+            )
+
+        # Fixed-length tuple validation
+        if len(args) == 2 and args[1] is Ellipsis:
+            # tuple[T, ...]
+            item_schema = args[0]
+            for i, item in enumerate(value):
+                _validate_against_schema(item, item_schema, f"{field_name}[{i}]")
+            return
+
+        if len(value) != len(args):
+            raise ValueError(
+                f"{field_name}: expected tuple of length {len(args)}, got {len(value)}"
+            )
+
+        for i, (item, item_schema) in enumerate(zip(value, args)):
+            _validate_against_schema(item, item_schema, f"{field_name}[{i}]")
+        return
+
+    # ------------------------------------------------------------------
+    # list[T]
+    # ------------------------------------------------------------------
+    if origin is list:
+        if not isinstance(value, list):
+            raise TypeError(
+                f"{field_name}: expected list, got {type(value).__name__}"
+            )
+
+        if len(args) == 1:
+            item_schema = args[0]
+            for i, item in enumerate(value):
+                _validate_against_schema(item, item_schema, f"{field_name}[{i}]")
+        return
+
+    # ------------------------------------------------------------------
+    # Union / PEP604 A | B
+    # ------------------------------------------------------------------
+    if origin is types.UnionType or origin is getattr(types, "UnionType", None):
+        # For Python 3.10+ `A | B`
+        last_error: Exception | None = None
+        for option_schema in args:
+            try:
+                _validate_against_schema(value, option_schema, field_name)
+                return
+            except (TypeError, ValueError) as e:
+                last_error = e
+        raise TypeError(
+            f"{field_name}: value {value!r} does not match any allowed schema in {schema!r}"
+        ) from last_error
+
+    # typing.Union
+    if origin is getattr(__import__("typing"), "Union", None):
+        last_error: Exception | None = None
+        for option_schema in args:
+            try:
+                _validate_against_schema(value, option_schema, field_name)
+                return
+            except (TypeError, ValueError) as e:
+                last_error = e
+        raise TypeError(
+            f"{field_name}: value {value!r} does not match any allowed schema in {schema!r}"
+        ) from last_error
+
+    # ------------------------------------------------------------------
+    # Plain classes/types
+    # ------------------------------------------------------------------
+    if schema is Path:
+        if not isinstance(value, Path):
+            raise TypeError(
+                f"{field_name}: expected Path, got {type(value).__name__}"
+            )
+        return
+
+    if schema in (bool, int, str, float):
+        if not isinstance(value, schema):
+            raise TypeError(
+                f"{field_name}: expected {schema.__name__}, got {type(value).__name__}"
+            )
+        return
+
+    # Fallback: try isinstance(schema)
+    if isinstance(schema, type):
+        if not isinstance(value, schema):
+            raise TypeError(
+                f"{field_name}: expected {schema.__name__}, got {type(value).__name__}"
+            )
+        return
+
+    # If we reach here, schema form is unsupported for now
+    raise TypeError(
+        f"{field_name}: unsupported schema declaration {schema!r}"
+    )
+
+def validate_q_runtime_option_dict(raw: dict[str, Any]) -> None:
+    """
+    Validate a raw q runtime option dict against Q_EXECUTABLE_OPTION_SPECS.
+
+    Checks:
+    - unknown keys
+    - schema compatibility for known keys
+
+    Raises:
+        ValueError / TypeError
+    """
+    unknown = set(raw) - set(Q_EXECUTABLE_OPTION_SPECS)
+    if unknown:
+        raise ValueError(f"Unknown q runtime option keys: {sorted(unknown)}")
+
+    for name, value in raw.items():
+        spec = Q_EXECUTABLE_OPTION_SPECS[name]
+        _validate_against_schema(value, spec.schema, name)
 
 def build_q_bootstrap_argv(
     q_executable: str,
