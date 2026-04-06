@@ -116,7 +116,7 @@ Q_EXECUTABLE_OPTION_SPECS: dict[str, QConfigSpec] = {
     "http_size": QConfigSpec(
         name="http_size",
         scope="q_executable",
-        arg_kind="scalar",
+        arg_kind="multi",
         cli_flag="-C",
         schema=tuple[int, int],
         apply_mode="requires_restart",
@@ -317,15 +317,15 @@ def merge_q_runtime_options(*layers: QRuntimeOptions) -> QRuntimeOptions:
 
     Later non-None values override earlier values.
     """
-    result = QRuntimeOptions()
+    merged: dict[str, Any] = {}
 
     for layer in layers:
         for f in fields(QRuntimeOptions):
             value = getattr(layer, f.name)
             if value is not None:
-                setattr(result, f.name, value)
+                merged[f.name] = value
 
-    return result
+    return QRuntimeOptions(**merged)
 
 
 def q_runtime_options_from_dict(raw: dict[str, Any] | None) -> QRuntimeOptions:

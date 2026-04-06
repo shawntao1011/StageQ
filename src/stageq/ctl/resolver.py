@@ -5,15 +5,13 @@ from typing import Any
 
 import yaml
 
-from stageq.ctl.runtime.q_options import (
-    merge_q_runtime_options,
-    q_runtime_options_from_dict,
-)
-from stageq.ctl.runtime.q_profiles import SERVICE_Q_PROFILE
-from stageq.model.common import (
-    ProcessLaunchConfig,
+from stageq.model.common import ProcessLaunchConfig
+from stageq.model.q_runtime_options import (
     QBootstrapConfig,
     QServiceRuntimeConfig,
+    Q_RUNTIME_DEFAULTS_FOR_SERVICE,
+    merge_q_runtime_options,
+    q_runtime_options_from_dict,
 )
 from stageq.model.service import ResolvedServiceConfig, ServiceIdentity
 
@@ -86,7 +84,7 @@ def resolve_service_config(
         # q intrinsic defaults are represented implicitly:
         # if a field remains None, it is omitted from argv and q uses its native default.
 
-        workload_defaults = SERVICE_Q_PROFILE.options
+        workload_defaults = Q_RUNTIME_DEFAULTS_FOR_SERVICE
         env_defaults = q_runtime_options_from_dict(env_cfg.get("q_runtime_defaults"))
         instance_overrides = q_runtime_options_from_dict(
             q_runtime_cfg.get("options")
