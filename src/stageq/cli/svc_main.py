@@ -12,7 +12,7 @@ def cmd_start(args: argparse.Namespace) -> None:
 
 
 def cmd_stop(args: argparse.Namespace) -> None:
-    stopped = stop_service(root_dir(), args.service_name)
+    stopped = stop_service(root_dir(), args.service_name, args.env)
     if stopped:
         print(f"stopped {args.service_name}")
     else:
@@ -20,7 +20,7 @@ def cmd_stop(args: argparse.Namespace) -> None:
 
 
 def cmd_status(args: argparse.Namespace) -> None:
-    running, pid = service_status(root_dir(), args.service_name)
+    running, pid = service_status(root_dir(), args.service_name, args.env)
     if running:
         print(f"running {args.service_name} (pid={pid})")
     elif pid is None:
@@ -40,10 +40,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("stop")
     p.add_argument("service_name")
+    p.add_argument("--env", default="dev")
     p.set_defaults(func=cmd_stop)
 
     p = sub.add_parser("status")
     p.add_argument("service_name")
+    p.add_argument("--env", default="dev")
     p.set_defaults(func=cmd_status)
 
     return parser

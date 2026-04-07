@@ -65,8 +65,9 @@ def render_config_q(cfg: ResolvedServiceConfig) -> str:
     return "\n".join(lines)
 
 
-def write_config_q(cfg: ResolvedServiceConfig) -> Path:
-    out = cfg.launch.generated_dir / f"{cfg.identity.name}.config.q"
+def write_config_q(cfg: ResolvedServiceConfig, out: Path | None = None) -> Path:
+    if out is None:
+        out = cfg.launch.generated_dir / f"{cfg.identity.name}.config.q"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(render_config_q(cfg), encoding="utf-8")
     return out

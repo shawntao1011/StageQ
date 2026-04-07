@@ -12,60 +12,76 @@ from stageq.ctl.resolver import resolve_service_config
 from stageq.model.runtime import QRuntimeConfig
 
 
-def _service_files(root_dir: Path, service_name: str) -> dict[str, Path]:
+def _runtime_home(root_dir: Path, service_name: str, env_name: str) -> Path:
+    return root_dir / "var" / "runtime" / env_name / service_name
+
+
+def _find_pid_file(root_dir: Path, service_name: str, env_name: str | None = None) -> Path | None:
+    runtime_root = root_dir / "var" / "runtime"
+    if env_name is not None:
+        candidate = runtime_root / env_name / service_name / "service.pid"
+        return candidate if candidate.exists() else None
+
+    candidates = sorted(runtime_root.glob(f"*/{service_name}/service.pid"))
+    if not candidates:
+        return None
+    if len(candidates) > 1:
+        locations = ", ".join(str(p) for p in candidates)
+        raise RuntimeError(f"multiple runtime homes matched for {service_name}: {locations}")
+    return candidates[0]
+
+
+def _service_files(root_dir: Path, service_name: str, env_name: str) -> dict[str, Path]:
+    runtime_home = _runtime_home(root_dir, service_name, env_name)
     return {
-        "pid": root_dir / "var" / "run" / f"{service_name}.pid",
-        "log": root_dir / "var" / "log" / f"{service_name}.log",
-        "cmdline": root_dir / "var" / "generated" / f"{service_name}.cmdline",
+        "runtime_home": runtime_home,
+        "config_q": runtime_home / "config.q",
+        "pid": runtime_home / "service.pid",
+        "log": runtime_home / "service.log",
+        "cmdline": runtime_home / "cmdline",
     }
 
 
 def _build_process_env(cfg) -> dict[str, str]:
     env = dict(os.environ)
     env.update(cfg.launch.env)
-    env["QHOME"] = str(cfg.launch.working_dir)
-    env["STAGEQ_SERVICE_NAME"] = cfg.identity.name
-    env["STAGEQ_SERVICE_TYPE"] = cfg.identity.service_type
-    env["STAGEQ_ENV"] = cfg.identity.env_name
-    if cfg.identity.instance_id:
-        env["STAGEQ_INSTANCE_ID"] = cfg.identity.instance_id
     return env
 
 
 def launch_service(root_dir: Path, service_name: str, env_name: str) -> int:
     cfg = resolve_service_config(root_dir, service_name, env_name)
-    files = _service_files(root_dir, service_name)
+    files = _service_files(root_dir, service_name, env_name)
 
-    ensure_dirs(cfg.launch.log_dir, cfg.launch.run_dir, cfg.launch.generated_dir)
+    ensure_dirs(files["runtime_home"])
 
     existing_pid = read_pid(files["pid"])
     if existing_pid and is_pid_running(existing_pid):
         raise RuntimeError(f"service {service_name} already running with pid {existing_pid}")
 
-    config_q_file = write_config_q(cfg)
+    write_config_q(cfg, out=files["config_q"])
 
     if not isinstance(cfg.runtime, QRuntimeConfig):
         raise NotImplementedError(f"runtime {cfg.runtime.kind!r} not implemented yet")
     assert cfg.runtime.bootstrap is not None
 
-    bootstrap_args = ["-name", cfg.identity.name, "-env", cfg.identity.env_name, "-config", str(config_q_file)]
     argv = build_q_bootstrap_argv(
         q_executable=cfg.launch.executable,
         bootstrap_file=cfg.runtime.bootstrap.entry_file,
         runtime_options=cfg.runtime.startup_options,
-        bootstrap_args=bootstrap_args,
     )
 
     env = _build_process_env(cfg)
     write_text(files["cmdline"], shlex.join(argv) + "\n")
 
-    pid = spawn_process(argv=argv, cwd=cfg.launch.working_dir, env=env, log_file=files["log"])
+    pid = spawn_process(argv=argv, cwd=files["runtime_home"], env=env, log_file=files["log"])
     write_pid(files["pid"], pid)
     return pid
 
 
-def stop_service(root_dir: Path, service_name: str) -> bool:
-    pid_file = _service_files(root_dir, service_name)["pid"]
+def stop_service(root_dir: Path, service_name: str, env_name: str | None = None) -> bool:
+    pid_file = _find_pid_file(root_dir, service_name, env_name)
+    if pid_file is None:
+        return False
     pid = read_pid(pid_file)
     if pid is None or not is_pid_running(pid):
         return False
@@ -74,8 +90,10 @@ def stop_service(root_dir: Path, service_name: str) -> bool:
     return True
 
 
-def service_status(root_dir: Path, service_name: str) -> tuple[bool, int | None]:
-    pid_file = _service_files(root_dir, service_name)["pid"]
+def service_status(root_dir: Path, service_name: str, env_name: str | None = None) -> tuple[bool, int | None]:
+    pid_file = _find_pid_file(root_dir, service_name, env_name)
+    if pid_file is None:
+        return False, None
     pid = read_pid(pid_file)
     if pid is None:
         return False, None
