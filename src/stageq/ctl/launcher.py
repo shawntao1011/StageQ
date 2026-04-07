@@ -48,6 +48,19 @@ def _build_process_env(cfg) -> dict[str, str]:
     return env
 
 
+def build_launch_argv(root_dir: Path, service_name: str, env_name: str) -> list[str]:
+    cfg = resolve_service_config(root_dir, service_name, env_name)
+    if not isinstance(cfg.runtime, QRuntimeConfig):
+        raise NotImplementedError(f"runtime {cfg.runtime.kind!r} not implemented yet")
+    assert cfg.runtime.bootstrap is not None
+
+    return build_q_bootstrap_argv(
+        q_executable=cfg.launch.executable,
+        bootstrap_file=cfg.runtime.bootstrap.entry_file,
+        runtime_options=cfg.runtime.startup_options,
+    )
+
+
 def launch_service(root_dir: Path, service_name: str, env_name: str) -> int:
     cfg = resolve_service_config(root_dir, service_name, env_name)
     files = _service_files(root_dir, service_name, env_name)
@@ -58,17 +71,7 @@ def launch_service(root_dir: Path, service_name: str, env_name: str) -> int:
     if existing_pid and is_pid_running(existing_pid):
         raise RuntimeError(f"service {service_name} already running with pid {existing_pid}")
 
-    write_config_q(cfg, out=files["config_q"])
-
-    if not isinstance(cfg.runtime, QRuntimeConfig):
-        raise NotImplementedError(f"runtime {cfg.runtime.kind!r} not implemented yet")
-    assert cfg.runtime.bootstrap is not None
-
-    argv = build_q_bootstrap_argv(
-        q_executable=cfg.launch.executable,
-        bootstrap_file=cfg.runtime.bootstrap.entry_file,
-        runtime_options=cfg.runtime.startup_options,
-    )
+    argv = build_launch_argv(root_dir, service_name, env_name)
 
     env = _build_process_env(cfg)
     write_text(files["cmdline"], shlex.join(argv) + "\n")

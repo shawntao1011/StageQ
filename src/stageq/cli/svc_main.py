@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import shlex
 
 from stageq.cli.common import root_dir
-from stageq.ctl.launcher import launch_service, service_status, stop_service
+from stageq.codec.q_config import write_config_q
+from stageq.ctl.launcher import build_launch_argv, launch_service, service_status, stop_service
+from stageq.ctl.resolver import resolve_service_config
 
 
 def cmd_start(args: argparse.Namespace) -> None:
@@ -28,6 +31,20 @@ def cmd_status(args: argparse.Namespace) -> None:
     else:
         print(f"not running {args.service_name} (stale pid={pid})")
 
+def cmd_print(args: argparse.Namespace) -> None:
+    repo_root = root_dir()
+    cfg = resolve_service_config(repo_root, args.service_name, args.env)
+
+    runtime_home = repo_root / "var" / "runtime" / args.env / args.service_name
+    runtime_home.mkdir(parents=True, exist_ok=True)
+
+    config_path = runtime_home / "config.q"
+    write_config_q(cfg, out=config_path)
+
+    argv = build_launch_argv(repo_root, args.service_name, args.env)
+    print(f"[stageq] runtime home: {runtime_home}")
+    print(f"[stageq] config: {config_path}")
+    print(f"[stageq] launch command: {shlex.join(argv)}")
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="stageqsvc")
@@ -47,6 +64,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("service_name")
     p.add_argument("--env", default="dev")
     p.set_defaults(func=cmd_status)
+
+    p = sub.add_parser("print")
+    p.add_argument("service_name")
+    p.add_argument("--env", default="dev")
+    p.set_defaults(func=cmd_print)
 
     return parser
 

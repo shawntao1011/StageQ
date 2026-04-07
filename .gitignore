@@ -95,3 +95,6 @@ CTestTestfile.cmake
 Testing
 third_party/
 _stage/
+
+# StageQ
+var/

@@ -16,7 +16,7 @@ launch:
 q_runtime:
   bootstrap: src/stageq/q/bootstrap/bootstrap.q
   options:
-    port: 32120
+    port: 18800
     secondary_threads: 4
   libraries:
     - src/stageq/q/common/util.q
