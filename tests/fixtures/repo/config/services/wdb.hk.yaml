@@ -1,7 +1,6 @@
 service:
   name: wdb.hk
   type: wdb
-  env: dev
   instance_id: hk
 
 runtime:

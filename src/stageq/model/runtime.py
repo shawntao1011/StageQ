@@ -30,7 +30,7 @@ class QRuntimeOptions:
     random_seed: int | None = None
     timer_ticks: int | None = None
     timeout: int | None = None
-    disable_syscmds: int | str | None = None
+    disable_syscmds: Literal[1] | Path | str | None = None
     user_password_file: Path | str | None = None
     workspace: int | None = None
     start_week: Literal[0, 1, 2, 3, 4, 5, 6] | None = None
@@ -66,7 +66,7 @@ Q_EXECUTABLE_OPTION_SPECS: dict[str, QConfigSpec] = {
     "random_seed": QConfigSpec("random_seed", "q_executable", "scalar", "-S", int, "requires_restart", "Random seed"),
     "timer_ticks": QConfigSpec("timer_ticks", "q_executable", "scalar", "-t", int, "requires_restart", "Timer ticks"),
     "timeout": QConfigSpec("timeout", "q_executable", "scalar", "-T", int, "requires_restart", "Timeout"),
-    "disable_syscmds": QConfigSpec("disable_syscmds", "q_executable", "scalar", "-u", int | str, "requires_restart", "Disable syscmds"),
+    "disable_syscmds": QConfigSpec("disable_syscmds", "q_executable", "scalar", "-u", Literal[1] | Path | None, "requires_restart", "Disable syscmds"),
     "user_password_file": QConfigSpec("user_password_file", "q_executable", "scalar", "-U", Path | str, "requires_restart", "User/password file"),
     "workspace": QConfigSpec("workspace", "q_executable", "scalar", "-w", int, "requires_restart", "Workspace limit"),
     "start_week": QConfigSpec("start_week", "q_executable", "scalar", "-W", Literal[0, 1, 2, 3, 4, 5, 6], "requires_restart", "Start-of-week"),
@@ -74,7 +74,7 @@ Q_EXECUTABLE_OPTION_SPECS: dict[str, QConfigSpec] = {
 }
 
 
-Q_RUNTIME_DEFAULTS_FOR_SERVICE = QRuntimeOptions(blocked=True, disable_syscmds=True)
+Q_RUNTIME_DEFAULTS_FOR_SERVICE = QRuntimeOptions(blocked=True)
 Q_RUNTIME_DEFAULTS_FOR_JOB = QRuntimeOptions(quiet=True)
 
 
@@ -115,7 +115,7 @@ def validate_against_schema(value: Any, schema: Any, field_name: str) -> None:
     args = get_args(schema)
 
     if origin is Literal:
-        if value not in args:
+        if not any(value == arg and type(value) is type(arg) for arg in args):
             raise ValueError(f"{field_name}: invalid literal value {value!r}; expected one of {args!r}")
         return
 
