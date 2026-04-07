@@ -4,13 +4,11 @@ import os
 import shlex
 from pathlib import Path
 
-from stageq.codec.q_config import write_config_q
 from stageq.codec.q_runtime import build_q_bootstrap_argv
 from stageq.ctl.fsops import ensure_dirs, read_pid, write_pid, write_text
 from stageq.ctl.process import is_pid_running, spawn_process, stop_pid
 from stageq.ctl.resolver import resolve_service_config
 from stageq.model.runtime import QRuntimeConfig
-
 
 def _runtime_home(root_dir: Path, service_name: str, env_name: str) -> Path:
     return root_dir / "var" / "runtime" / env_name / service_name
