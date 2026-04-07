@@ -9,7 +9,7 @@ from stageq.model.service import ProcessLaunchConfig, ResolvedServiceConfig, Ser
 def test_service_validate_requires_q_bootstrap() -> None:
     cfg = ResolvedServiceConfig(
         identity=ServiceIdentity(name="hdb.hk", service_type="hdb", env_name="dev"),
-        launch=ProcessLaunchConfig(executable="q", working_dir=Path('.'), log_dir=Path('var/log'), run_dir=Path('var/run'), generated_dir=Path('var/generated')),
+        launch=ProcessLaunchConfig(executable="q", working_dir=Path('.')),
         runtime=QRuntimeConfig(bootstrap=None),
     )
 

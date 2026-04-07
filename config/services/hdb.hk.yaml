@@ -1,7 +1,6 @@
 service:
   name: hdb.hk
   type: hdb
-  env: dev
   instance_id: hk
 
 runtime:

@@ -45,9 +45,6 @@ def resolve_service_config(root_dir: Path, service_name: str, env_name: str) -> 
     launch = ProcessLaunchConfig(
         executable=launch_cfg.get("executable", launch_defaults.get("executable", "q")),
         working_dir=_resolve_path(root_dir, launch_cfg.get("working_dir", launch_defaults.get("working_dir", "."))),
-        log_dir=_resolve_path(root_dir, launch_cfg.get("log_dir", launch_defaults.get("log_dir", "var/log"))),
-        run_dir=_resolve_path(root_dir, launch_cfg.get("run_dir", launch_defaults.get("run_dir", "var/run"))),
-        generated_dir=_resolve_path(root_dir, launch_cfg.get("generated_dir", launch_defaults.get("generated_dir", "var/generated"))),
     )
 
     runtime_kind = runtime["kind"]

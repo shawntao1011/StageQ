@@ -19,9 +19,6 @@ class ServiceIdentity:
 class ProcessLaunchConfig:
     executable: str
     working_dir: Path
-    log_dir: Path
-    run_dir: Path
-    generated_dir: Path
     args: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
 
