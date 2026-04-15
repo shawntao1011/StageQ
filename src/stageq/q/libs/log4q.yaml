@@ -1,0 +1,8 @@
+module:
+  name: log4q
+  namespace: .log4q
+  kind: library
+  file: q/libs/log4q.q
+
+config:
+  

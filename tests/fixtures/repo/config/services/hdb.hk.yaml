@@ -19,7 +19,7 @@ q_runtime:
     port: 32120
     secondary_threads: 4
   libraries:
-    - src/stageq/q/common/util.q
+    - src/stageq/q/libs/util.q
     - src/stageq/q/services/hdb.q
 
 service_config:

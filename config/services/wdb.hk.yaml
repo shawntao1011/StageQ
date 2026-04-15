@@ -20,7 +20,7 @@ q_runtime:
     secondary_threads: 4
     utc_offset: 0
   libraries:
-    - src/stageq/q/common/util.q
+    - src/stageq/q/libs/util.q
     - src/stageq/q/services/wdb.q
 
 service_config:
